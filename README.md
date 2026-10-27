@@ -11,7 +11,7 @@
 
 | | 무엇 |
 |---|---|
-| `Base/` | `CommandBase`(스텝 수명 기본) · `ClaimTweenCommandBase`(ResolveTargets → ClaimTarget → 트윈 → Commit / Skip / 스텝 경계 가속) · `CanvasFadeCommandBase` · `SlideCommandBase` · `CommandSpecBase` · `INodeCommandFactory` |
+| `Base/` | `CommandBase`(스텝 수명 기본) · `ClaimTweenCommandBase`(ResolveTargets → ClaimTarget → 트윈 → Commit / Skip / 스텝 경계 가속) · `CanvasFadeCommandBase` · `CommandSpecBase` · `INodeCommandFactory` |
 | `Execution/` | `CommandExecutor`(MonoBehaviour 호스트) · `SequencePlayer` · `ISequenceCommand` · `SkipPolicy` · 포트(`CommandRuntimePorts.cs`) |
 | 루트 | `CommandRunScope`(스텝/런 수명 · 취소 · 압축 · 시간 배율) · `LifetimeScope` · `PresentationScopeSession` · `CompositeCommandFactory` · `SignalLatch` · Unity 포트 구현(`UnityInputSource` · `UnityTimeSource` · `UnitySignalBus`) |
 
