@@ -4,8 +4,8 @@ using UnityEngine;
 // Line Playback Demo의 조립 — ked-presentation-runtime의 PresentationAssembler + PresentationRuntime.AttachHost 자리.
 // 조립 순서와 연결은 원본을 그대로 따른다. 다른 것은 무대(MiniStage) · 대본(MiniYarn) · 화면(IMGUI)뿐이다.
 //
-//   대본 ─ DialogueRunner(MiniYarn) ─┬─ YarnCommandBridge ─ YarnPlaybackDriver(쌓기)
-//                                    └─ CustomLinePresenter ─ VNLinePresentationFlow ─ PlayCollected → CommandExecutor.PlaySpecs
+//   DemoScript ─ DialogueRunner(MiniYarn) ─┬─ YarnCommandBridge ─ YarnPlaybackDriver(쌓기)
+//                                          └─ CustomLinePresenter ─ VNLinePresentationFlow ─ PlayCollected → CommandExecutor.PlaySpecs
 //   PresentationScopeSession(executor, PresentationSessionContext)   ← 빨리 넘기기 · 시크 = 압축, 속도 모드 = 시간 배율
 //   NodePlaybackHost ─ PlaybackUnit ─ ScenePresentation             ← 런 수명(열기 · 정지 · 루트부터 다시)
 //   VNAdvanceInputPoller ─ DialogueAdvanceDispatcher(AdvanceGate) · VNFeatureController(롤백 · 스킵 · 오토 · 속도)
@@ -13,8 +13,7 @@ using UnityEngine;
 public sealed partial class LinePlaybackDemo : MonoBehaviour
 {
     [Header("Script")]
-    [SerializeField] private TextAsset script;
-    [SerializeField] private string startNode = "LinePlayback_Demo";
+    [SerializeField] private string startNode = DemoScript.NodeName;
 
     [Header("Playback")]
     [SerializeField] private VNPlaybackSettings playbackSettings = new();
@@ -78,17 +77,14 @@ public sealed partial class LinePlaybackDemo : MonoBehaviour
 
         // ── BootstrapYarn ──
         _runner = gameObject.AddComponent<DialogueRunner>();
-        _runner.SetProgram(YarnProgram.Parse(script != null ? script.text : string.Empty, script != null ? script.name : "(no script)"));
-
-        if (script == null)
-            Debug.LogError("[LinePlaybackDemo] No script TextAsset is assigned.", this);
+        _runner.SetContents(DemoScript.Contents);
 
         var playbackDriver = new YarnPlaybackDriver(_executor, _scopeSession, _probe);
 
         _boxView = new ImguiDialogueBoxView();
         var boxPresentation = new DialogueBoxPresentationController(new DialogueBoxCurrentState(), _boxView);
 
-        _ = new YarnCommandBridge(_runner, playbackDriver, new MiniStageCommandParser(), boxPresentation);
+        _ = new YarnCommandBridge(_runner, playbackDriver, new MiniStageCommandParser());
 
         var lineBoundary = new VNYarnLineBoundary(_backlog, _rollbackHistory, runtimeStateProvider, _lineState);
         var typewriter = new DemoTypewriter();

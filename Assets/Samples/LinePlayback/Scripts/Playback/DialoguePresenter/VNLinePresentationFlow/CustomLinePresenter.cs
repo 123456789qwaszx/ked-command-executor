@@ -1,9 +1,8 @@
-using System.Collections.Generic;
 using System.Threading;
 using MiniYarn;
 
 // ked-presentation-runtime의 CustomLinePresenter를 옮긴 것.
-// 바뀐 곳: Yarn.Unity → MiniYarn, 타자기 액션 마크업 핸들러 없음, 기본 LinePresenter 앞에 끼우는 대신 목록 끝에 넣는다.
+// 바뀐 곳: Yarn.Unity → MiniYarn, 타자기 액션 마크업 핸들러 없음, 러너의 프레젠터는 이것 하나다.
 public interface IVNLineAborter
 {
     void AbortCurrentVNLine();
@@ -35,7 +34,7 @@ public sealed class CustomLinePresenter : DialoguePresenterBase, IVNLineAborter
         VNPlaybackRuntimeState vnPlaybackRuntimeState)
     {
         dialogueRunner.onNodeStart?.AddListener(nodeName => _currentNodeName = nodeName);
-        RegisterPresenter(dialogueRunner);
+        dialogueRunner.SetPresenter(this);
 
         _vnLinePresentationFlow = vnLinePresentationFlow;
         _typewriter = typewriter;
@@ -157,17 +156,6 @@ public sealed class CustomLinePresenter : DialoguePresenterBase, IVNLineAborter
         _lineVisualCts.Cancel();
         _lineVisualCts.Dispose();
         _lineVisualCts = null;
-    }
-
-    private void RegisterPresenter(DialogueRunner dialogueRunner)
-    {
-        var presenters =
-            new List<DialoguePresenterBase>(dialogueRunner.DialoguePresenters);
-
-        presenters.Remove(this);
-        presenters.Add(this);
-
-        dialogueRunner.DialoguePresenters = presenters;
     }
 
     private void OnDestroy()

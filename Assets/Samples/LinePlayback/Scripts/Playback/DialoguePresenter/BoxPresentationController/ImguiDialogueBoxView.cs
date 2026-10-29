@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 using MiniYarn;
 using UnityEngine;
 
@@ -34,8 +33,6 @@ public sealed class ImguiDialogueBoxView : IPresentationDialogueBoxView
         Alpha = 0f;
     }
 
-    public YarnTask FadeInAsync(float duration, CancellationToken token) => Fade(1f, duration, () => !token.IsCancellationRequested);
-    public YarnTask FadeOutAsync(float duration, CancellationToken token) => Fade(0f, duration, () => !token.IsCancellationRequested);
     public YarnTask FadeInAsync(float duration, LinePresentationRun run) => Fade(1f, duration, () => run.IsValid);
     public YarnTask FadeOutAsync(float duration, LinePresentationRun run) => Fade(0f, duration, () => run.IsValid);
 

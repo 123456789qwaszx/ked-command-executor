@@ -4,19 +4,6 @@ using UnityEngine.Events;
 
 namespace MiniYarn
 {
-    // Yarn 런타임의 Line · Command 흉내. 컴파일된 노드 안의 내용 하나.
-    public sealed class Line
-    {
-        public string ID;
-        public string RawText;
-        public string[] Metadata;
-    }
-
-    public sealed class Command
-    {
-        public string Text;
-    }
-
     // Yarn.Markup.MarkupParseResult 흉내 — 이 샘플은 마크업을 쓰지 않으므로 글자만 갖는다.
     public readonly struct MarkupParseResult
     {
@@ -28,35 +15,20 @@ namespace MiniYarn
         }
     }
 
-    // LocalizedLine 흉내. "이름: 대사"에서 이름을 떼어 CharacterName으로 둔다(Yarn의 character 속성과 같은 일).
+    // LocalizedLine 흉내 — 줄 ID · 화자 · 대사 · 태그(#auto · #boxhide …).
     public sealed class LocalizedLine
     {
         public string TextID { get; }
-        public string RawText { get; }
         public string CharacterName { get; }
-        public MarkupParseResult Text { get; }
         public MarkupParseResult TextWithoutCharacterName { get; }
         public string[] Metadata { get; }
 
-        public LocalizedLine(Line line)
+        public LocalizedLine(string textId, string characterName, string text, string[] metadata = null)
         {
-            TextID = line.ID;
-            RawText = line.RawText ?? string.Empty;
-            Metadata = line.Metadata ?? Array.Empty<string>();
-            Text = new MarkupParseResult(RawText);
-
-            int colon = RawText.IndexOf(':');
-
-            if (colon > 0 && colon <= 24)
-            {
-                CharacterName = RawText.Substring(0, colon).Trim();
-                TextWithoutCharacterName = new MarkupParseResult(RawText.Substring(colon + 1).TrimStart());
-            }
-            else
-            {
-                CharacterName = null;
-                TextWithoutCharacterName = Text;
-            }
+            TextID = textId;
+            CharacterName = characterName;
+            TextWithoutCharacterName = new MarkupParseResult(text);
+            Metadata = metadata ?? Array.Empty<string>();
         }
     }
 

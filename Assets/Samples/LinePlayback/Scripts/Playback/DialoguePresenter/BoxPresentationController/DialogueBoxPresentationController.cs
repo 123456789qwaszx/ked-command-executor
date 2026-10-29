@@ -1,12 +1,10 @@
-using System.Threading;
 using MiniYarn;
 
-// ked-presentation-runtime의 DialogueBoxPresentationController(+ .Command 부분)를 옮긴 것.
-// 바뀐 곳: 화자 정책 DB · 표면 레이아웃 프리셋 없음(박스 종류는 태그로만 정한다), 뷰는 하나.
+// ked-presentation-runtime의 DialogueBoxPresentationController를 옮긴 것.
+// 바뀐 곳: 화자 정책 DB · 표면 레이아웃 프리셋 · box_hide/box_show 없음(박스 종류와 전환은 줄 태그로만 정한다), 뷰는 하나.
 //
 // 줄에 묶인 전환(ShowLineAsync)은 줄 실행(LinePresentationRun)이 유효할 때만 상태를 커밋한다 —
 // 롤백 · 취소로 줄이 무효가 되면 페이드는 그 자리에서 손을 떼고, 박스 상태는 앞 줄의 것으로 남는다.
-// box_hide / box_show는 줄과 무관한 즉시 명령이라 컨트롤러가 가진 가시성 세대로 보호한다.
 public sealed class DialogueBoxPresentationController
 {
     private const DialogueBoxKind DefaultLineBoxKind = DialogueBoxKind.Surface;
@@ -16,9 +14,6 @@ public sealed class DialogueBoxPresentationController
 
     private readonly IPresentationDialogueBoxView _box;
     private readonly DialogueBoxCurrentState _boxState;
-
-    private int _visibilityTransitionEpoch;
-    private CancellationTokenSource _visibilityTransitionCts;
 
     public DialogueBoxPresentationController(
         DialogueBoxCurrentState dialogueBoxState,
@@ -35,8 +30,6 @@ public sealed class DialogueBoxPresentationController
     public async YarnTask ShowLineAsync(
         DialogueBoxPresentationContext ctx)
     {
-        InvalidateVisibilityTransition();
-
         DialogueBoxKind nextBoxKind = ResolveNextBoxKind(ctx);
         DialogueBoxTransitionKind transitionKind = ResolveTransitionKind(ctx, _boxState.BoxKind, nextBoxKind);
 
@@ -171,8 +164,6 @@ public sealed class DialogueBoxPresentationController
 
     public void CloseAll()
     {
-        InvalidateVisibilityTransition();
-
         _box.SetVisibleImmediate(false);
         _boxState.Reset();
     }
@@ -180,101 +171,8 @@ public sealed class DialogueBoxPresentationController
     // 뷰가 하나이므로 "중단된 전환이 건드린 박스"와 "현재 박스"가 같은 객체
     public void CleanupStale()
     {
-        InvalidateVisibilityTransition();
-
         bool committedVisible = _boxState.IsVisible && _boxState.Box != null;
 
         _box.SetVisibleImmediate(committedVisible);
-    }
-
-    // ───────────────────────── box_hide / box_show (즉시 명령) ─────────────────────────
-
-    private readonly struct VisibilityTransitionRun
-    {
-        public readonly int Epoch;
-        public readonly CancellationToken Token;
-
-        public VisibilityTransitionRun(int epoch, CancellationToken token)
-        {
-            Epoch = epoch;
-            Token = token;
-        }
-    }
-
-    public async YarnTask HideCurrentAsync()
-    {
-        VisibilityTransitionRun visibilityRun = BeginVisibilityTransition();
-
-        if (_boxState.Box == null || !_boxState.IsVisible)
-        {
-            _box.SetVisibleImmediate(false);
-            _boxState.MarkHidden();
-            return;
-        }
-
-        await _box.FadeOutAsync(
-            FadeDownDuration,
-            visibilityRun.Token);
-
-        if (!IsCurrentVisibilityTransition(visibilityRun))
-            return;
-
-        _box.SetVisibleImmediate(false);
-        _boxState.MarkHidden();
-    }
-
-    public async YarnTask ShowCurrentAsync()
-    {
-        VisibilityTransitionRun visibilityRun = BeginVisibilityTransition();
-
-        if (_boxState.Box == null)
-            return;
-
-        if (_boxState.IsVisible)
-        {
-            _box.SetVisibleImmediate(true);
-            _boxState.TryMarkVisible();
-            return;
-        }
-
-        _box.PrepareHidden();
-
-        await _box.FadeInAsync(
-            FadeUpDuration,
-            visibilityRun.Token);
-
-        if (!IsCurrentVisibilityTransition(visibilityRun))
-            return;
-
-        _box.SetVisibleImmediate(true);
-        _boxState.TryMarkVisible();
-    }
-
-    private VisibilityTransitionRun BeginVisibilityTransition()
-    {
-        InvalidateVisibilityTransition();
-
-        _visibilityTransitionCts = new CancellationTokenSource();
-
-        return new VisibilityTransitionRun(
-            _visibilityTransitionEpoch,
-            _visibilityTransitionCts.Token);
-    }
-
-    private void InvalidateVisibilityTransition()
-    {
-        _visibilityTransitionEpoch++;
-
-        if (_visibilityTransitionCts == null)
-            return;
-
-        _visibilityTransitionCts.Cancel();
-        _visibilityTransitionCts = null;
-    }
-
-    private bool IsCurrentVisibilityTransition(VisibilityTransitionRun visibilityRun)
-    {
-        return _visibilityTransitionEpoch == visibilityRun.Epoch &&
-               !visibilityRun.Token.IsCancellationRequested;
     }
 }
