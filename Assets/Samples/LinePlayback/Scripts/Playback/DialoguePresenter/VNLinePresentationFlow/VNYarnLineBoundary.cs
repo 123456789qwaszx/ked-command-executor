@@ -16,23 +16,20 @@ public readonly struct YarnLineMeta
     }
 }
 
-// 원본과 같다.
+// 원본과 같다. 바뀐 곳: 저장 · UI가 읽는 현재 줄 공급자(VNRuntimeStateProvider) 갱신 없음 — 이 샘플에는 읽는 곳이 없다.
 public sealed class VNYarnLineBoundary
 {
     private readonly BacklogRecorder _backlogRecorder;
     private readonly RollbackHistory _rollbackHistory;
-    private readonly VNRuntimeStateProvider _runtimeStateProvider;
     private readonly VNLinePresentationState _advanceState;
 
     public VNYarnLineBoundary(
         BacklogRecorder backlogRecorder,
         RollbackHistory rollbackHistory,
-        VNRuntimeStateProvider runtimeStateProvider,
         VNLinePresentationState advanceState)
     {
         _backlogRecorder = backlogRecorder;
         _rollbackHistory = rollbackHistory;
-        _runtimeStateProvider = runtimeStateProvider;
         _advanceState = advanceState;
     }
 
@@ -47,8 +44,6 @@ public sealed class VNYarnLineBoundary
 
     public void CommitLineEntered(YarnLineMeta meta)
     {
-        _runtimeStateProvider.UpdateCurrentLineMeta(meta);
-
         // 시크 패스스루 동안 두 기록의 규칙이 갈린다:
         //   롤백 포인트 — 다시 쌓는다. 장면 시작에서 지워졌고, occurrence 재계산과
         //                 다음 롤백의 근거가 이 재적재다.

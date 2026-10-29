@@ -77,7 +77,7 @@ Say("l02", "시구레", "하린이 3초 동안 걸어가요. ..."),
 | `DialoguePresenter/BoxPresentationController/` | `DialogueBoxPresentationController` · 상태 · 태그 파서 | 화자 정책 · 레이아웃 프리셋 · box_hide/show 없음. 뷰는 IMGUI |
 | `YarnBridge/` | `YarnPlaybackDriver` · `YarnCommandBridge` | 브리지는 명령별 등록 표 없이 `Forward` 하나로 받는다. 드라이버에 `[샘플]` 관측점 두 줄 |
 | `FeatureController/` | `VNFeatureController` · `AdvanceGate` · `DialogueAdvanceDispatcher` · `RapidSkipController` · `EpisodeSkipController` · `AutoAdvanceScheduler` · `LineHurrySpeedController` · `RollbackHistory` · `BacklogRecorder` · `VNAdvanceInputPoller` · 설정 | 선택 기록 없음. `DOTween.unscaledTimeScale` → `PresentationClock` |
-| `Host/` | `NodePlaybackHost` · `PlaybackUnit` · `ScenePresentation` · `YarnEpisodeNodeRunner` · `PresentationSessionContext` · `VNRuntimeStateProvider` | 이어하기 · 화면 전환 · 샷 응답 없음. `ScenePresentation`에 `[샘플]` 관측점 |
+| `Host/` | `NodePlaybackHost` · `PlaybackUnit` · `ScenePresentation` · `YarnEpisodeNodeRunner` · `PresentationSessionContext` | 이어하기 · 저장/UI용 현재 줄 공급자 · 진행 호스트용 표면 · 화면 전환 · 샷 응답 없음. `ScenePresentation`에 `[샘플]` 관측점 |
 
 그 아래를 받치는 것:
 

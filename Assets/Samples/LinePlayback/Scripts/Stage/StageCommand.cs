@@ -10,8 +10,6 @@ public readonly struct StageCommand
         _args = args ?? System.Array.Empty<string>();
     }
 
-    public int Count => _args.Length;
-
     public string Arg(int index, string fallback = null)
         => index < _args.Length && !string.IsNullOrEmpty(_args[index]) ? _args[index] : fallback;
 

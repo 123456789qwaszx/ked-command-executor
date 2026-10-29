@@ -31,12 +31,13 @@
 
 ## 샘플
 
-둘 다 실행기의 공개 API만 쓰고(각 샘플 어셈블리 → `Ked.CommandExecutor`), 복사 반입 대상이 아니다 — 반입은 `Assets/Ked.CommandExecutor/`만 가져간다.
+[Line Playback Demo](Assets/Samples/LinePlayback/README.md) — `Assets/Samples/LinePlayback/Scenes/LinePlaybackDemo.unity`
 
-| 샘플 | 씬 | 보여 주는 것 |
-|---|---|---|
-| [Command Lifecycle Demo](Assets/Samples/CommandLifecycle/README.md) | `Assets/Samples/CommandLifecycle/Scenes/CommandLifecycleDemo.unity` | 실행기 하나의 동작을 떼어서 — 대기 · 병렬 · 스텝 수명 정리 · 압축 · 취소 |
-| [Line Playback Demo](Assets/Samples/LinePlayback/README.md) | `Assets/Samples/LinePlayback/Scenes/LinePlaybackDemo.unity` | `ked-presentation-runtime`의 재생 계층(`CustomLinePresenter` · `VNLinePresentationFlow` · `YarnPlaybackDriver` · `YarnCommandBridge` · 재생 제어 · 호스트)을 구조 그대로 옮겨, Yarn 흉내(`MiniYarn`) 위에서 돌린다. 명령은 쌓였다가 다음 줄에서 한 스텝으로 재생되고, 롤백 · 빨리 넘기기 · 스킵 · 종료 속에서 스텝 경계마다 무대를 순수 모델과 맞춰 본다 |
+`ked-presentation-runtime`의 재생 계층(`CustomLinePresenter` · `VNLinePresentationFlow` · `YarnPlaybackDriver` · `YarnCommandBridge` · 재생 제어 · 호스트)을
+구조 그대로 옮겨, 최소한의 Yarn 흉내(`MiniYarn`) 위에서 돌린다. 명령은 쌓였다가 다음 줄에서 한 스텝으로 재생되고,
+롤백 · 빨리 넘기기 · 스킵 · 종료 속에서 스텝 경계마다 무대를 순수 모델과 맞춰 본다.
+
+실행기의 공개 API만 쓰고(어셈블리 `LinePlayback.Sample` → `Ked.CommandExecutor`), 복사 반입 대상이 아니다 — 반입은 `Assets/Ked.CommandExecutor/`만 가져간다.
 
 ## 다른 저장소로 가져가기
 

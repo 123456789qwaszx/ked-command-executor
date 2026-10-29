@@ -8,7 +8,6 @@ public sealed class ImguiDialogueBoxView : IPresentationDialogueBoxView
 {
     private readonly DialogueTextView _line = new();
 
-    public bool Visible { get; private set; }
     public float Alpha { get; private set; }
     public string CharacterName { get; private set; }
 
@@ -23,13 +22,11 @@ public sealed class ImguiDialogueBoxView : IPresentationDialogueBoxView
 
     public void SetVisibleImmediate(bool visible)
     {
-        Visible = visible;
         Alpha = visible ? 1f : 0f;
     }
 
     public void PrepareHidden()
     {
-        Visible = true;
         Alpha = 0f;
     }
 

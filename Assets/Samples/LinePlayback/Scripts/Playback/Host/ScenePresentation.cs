@@ -83,10 +83,6 @@ public sealed class ScenePresentation : IPlaybackStage
         }
     }
 
-    bool IPlaybackStage.IsSeeking => _lineState.IsSeekingActive;
-
-    void IPlaybackStage.AbandonSeek() => _lineState.ClearSeek();
-
     public void PrepareReplay()
     {
         // 같은 단위를 루트부터 다시 달린다 — 새 재생 구간이다. 남은 명령은 앞선 정지가 버렸다.

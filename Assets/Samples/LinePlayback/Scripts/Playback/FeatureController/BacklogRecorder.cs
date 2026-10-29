@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 
+// 원본과 같다. 바뀐 곳: 저장 복원(Restore) 없음.
+
 [Serializable]
 public struct DialogueLogEntry
 {
@@ -28,9 +30,6 @@ public sealed class BacklogRecorder
 
     public IReadOnlyList<DialogueLogEntry> Entries => _entries;
 
-    // 다음에 기록되는 라인이 받을 회차(playthrough) 전체 순번.
-    public int NextLineSequence => _nextLineSequence;
-
     
     public void MarkSceneBoundary() =>
         _sceneStartLineSequence = _nextLineSequence;
@@ -57,23 +56,6 @@ public sealed class BacklogRecorder
             nodeName = meta.nodeName,
             rawText = meta.rawText,
         });
-    }
-    
-    public void Restore(IReadOnlyList<DialogueLogEntry> entries)
-    {
-        _entries.Clear();
-
-        if (entries != null)
-        {
-            for (int i = 0; i < entries.Count; i++)
-                Add(entries[i]);
-        }
-
-        _nextLineSequence = _entries.Count == 0
-            ? 0
-            : _entries[^1].lineSequence + 1;
-
-        _sceneStartLineSequence = _nextLineSequence;
     }
     
     public void TruncateFromEnd(int count)

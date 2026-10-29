@@ -38,9 +38,6 @@ namespace MiniYarn
     {
         public CancellationToken NextContentToken;
         public CancellationToken HurryUpToken;
-
-        public readonly bool IsNextContentRequested => NextContentToken.IsCancellationRequested;
-        public readonly bool IsHurryUpRequested => HurryUpToken.IsCancellationRequested;
     }
 
     [Serializable]

@@ -43,8 +43,6 @@ public sealed class MiniStageCommandParser
         return table;
     }
 
-    public static bool Knows(string commandName) => commandName != null && Table.ContainsKey(commandName);
-
     // 커맨드 하나를 스펙(0개 이상)으로 풀어 output 뒤에 붙인다. 모르는 이름이면 false — 호출부가 소리 낸다.
     public bool TryParse(StageCommand command, List<CommandSpecBase> output)
     {

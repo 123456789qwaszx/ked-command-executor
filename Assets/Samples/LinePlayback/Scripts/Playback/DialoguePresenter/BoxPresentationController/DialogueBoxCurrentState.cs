@@ -1,4 +1,4 @@
-// 원본과 같다.
+// 원본과 같다. 바뀐 곳: box_hide/show가 쓰던 MarkHidden · TryMarkVisible 없음.
 public sealed class DialogueBoxCurrentState
 {
     public IPresentationDialogueBoxView Box { get; private set; }
@@ -13,20 +13,6 @@ public sealed class DialogueBoxCurrentState
         BoxKind = boxKind;
         Box = box;
         IsVisible = transitionKind != DialogueBoxTransitionKind.Hide;
-    }
-
-    public void MarkHidden()
-    {
-        IsVisible = false;
-    }
-
-    public bool TryMarkVisible()
-    {
-        if (Box == null || BoxKind.HasValue == false)
-            return false;
-
-        IsVisible = true;
-        return true;
     }
 
     public void Reset()

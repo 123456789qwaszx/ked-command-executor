@@ -35,8 +35,6 @@ public sealed class YarnPlaybackDriver
         _probe = probe;
     }
 
-    public int PendingCount => _collectedSpecs.Count;
-
     public void Enqueue(CommandSpecBase spec) => _collectedSpecs.Add(spec);
 
     public void PlayCollected()

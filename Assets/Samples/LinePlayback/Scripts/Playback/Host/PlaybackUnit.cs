@@ -1,13 +1,13 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-// 원본과 같다. 바뀐 곳: 이어하기(재개 예약) 없음 — 저장이 없는 샘플이다.
+// 원본과 같다. 바뀐 곳: 이어하기(재개 예약) 없음, 진행 호스트용 표면(LastHistoryIndex · IsSeeking · AbandonSeek) 없음.
 
 /// <summary>
 /// 재생 단위 하나의 수명 — 열기, 재생, 정지, 루트부터 다시 달리기.
 ///
 /// 이 저장소는 재생 단위의 루트를 하나만 둔다(PLAN_playback-unit E3·E4).
-/// 롤백 기록·Yarn 선택 기록·백로그의 장면 경계·줄 시크는 전부 "지금 단위의 루트"를 기준으로 움직이고,
+/// 롤백 기록·백로그의 장면 경계·줄 시크는 전부 "지금 단위의 루트"를 기준으로 움직이고,
 /// 그 기준이 서고 무너지는 순서를 이 타입 하나가 갖는다.
 ///
 /// 호스트가 말하는 것은 둘뿐이다.
@@ -15,12 +15,9 @@ using System.Threading.Tasks;
 /// - 되감을 때 자기 기록을 어디까지 자를지 — RestartFromRootAsync가 돌려주는 롤백 표적 색인
 ///
 /// 순서:
-///   열기     정지(이전 단위 정리) → BeginScene → 백로그 장면 경계 → (재개 예약이 있으면) 재개 시크
+///   열기     정지(이전 단위 정리) → BeginScene → 백로그 장면 경계
 ///   다시     정지 완료 대기 → PrepareReplay → 롤백 표적 소비
 ///   정지     재생 구간(열기 또는 다시부터)마다 한 번. 진행 중인 정지가 있으면 그것을 돌려준다.
-///
-/// 재개 예약은 PlaybackMemory.Restore가 건다. 다음에 열리는 단위 하나가 그것을 가져간다 —
-/// 호스트는 "기억을 되돌린 뒤 평소처럼 연다"만 하면 된다.
 ///
 /// 정지를 한 구간에 한 번으로 묶는 이유: ScenePresentation.StopAsync는 스코프를 끝낸다.
 /// 리플레이 요청과 끝내기 요청이 겹치면 두 번 끝나 버린다.
@@ -45,31 +42,13 @@ public sealed class PlaybackUnit
         _rollbackHistory = rollbackHistory;
     }
 
-    /// <summary>
-    /// 지금 단위 안의 마지막 줄 색인(롤백 좌표). 없으면 -1.
-    /// 호스트가 자기 기록(진행 선택 등)에 붙이는 앵커다 — 되감을 때 이 좌표로 자른다.
-    /// </summary>
-    public int LastHistoryIndex => _rollbackHistory.LastHistoryIndex;
-
-    /// <summary>
-    /// 지금 줄 시크(되감기 또는 재개) 중인가. 시크 중에는 화면에 보이는 것이 없다 —
-    /// 호스트는 이때 자기 기록(진행 선택 등)으로 자동 응답한다.
-    /// </summary>
-    public bool IsSeeking => _stage.IsSeeking;
-
-    /// <summary>
-    /// 시크를 버리고 일반 재생으로 돌아간다.
-    /// 호스트의 기록이 바닥났는데 표적 줄에 아직 닿지 못했을 때 쓴다(대본이 바뀐 경우).
-    /// </summary>
-    public void AbandonSeek() => _stage.AbandonSeek();
-
     /// <summary>새 단위를 연다. 이전 단위가 남긴 무대를 먼저 정리한다.</summary>
     public async Task OpenAsync(CancellationToken cancellationToken = default)
     {
         _stopIssued = false;
         await StopAsync();
 
-        // 정리하는 사이 끝내기 요청이 왔다면 열지 않는다. 재개 예약은 다음 열기로 남는다.
+        // 정리하는 사이 끝내기 요청이 왔다면 열지 않는다.
         cancellationToken.ThrowIfCancellationRequested();
 
         _stopIssued = false;

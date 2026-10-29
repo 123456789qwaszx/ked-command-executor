@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,16 +30,6 @@ namespace MiniYarn
         // 한 프레임 양보한다.
         public static YarnTask Yield() => new(NextFrame());
 
-        public static YarnTask WhenAll(IEnumerable<YarnTask> tasks)
-        {
-            var list = new List<Task>();
-
-            foreach (YarnTask task in tasks)
-                list.Add(task.AsTask());
-
-            return new YarnTask(Task.WhenAll(list));
-        }
-
         // 토큰이 취소되면 OperationCanceledException으로 끝난다(SuppressCancellationThrow와 짝을 이룬다).
         public static YarnTask WaitUntilCanceled(CancellationToken token)
         {
@@ -67,9 +56,6 @@ namespace MiniYarn
             {
             }
         }
-
-        public static bool IsCompletedSuccessfully(this YarnTask task)
-            => task.AsTask().Status == TaskStatus.RanToCompletion;
 
         // 기다리지 않고 흘려보낸다. 예외는 삼키지 않고 로그로 남긴다.
         public static async void Forget(this YarnTask task)

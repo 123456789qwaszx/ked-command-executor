@@ -1,4 +1,6 @@
 using System;
+
+// 원본과 같다. 바뀐 곳: 문서 주석에서 이 샘플에 없는 이어하기 · PresentationRuntime 언급을 뺐다.
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -13,10 +15,7 @@ using UnityEngine;
 /// 단위의 수명(열기·정지·다시 달리기)은 PlaybackUnit이 갖는다. 이 호스트가 정하는 것은
 /// "무엇을 재생할지(노드 이름)"와 "끝까지 간 노드는 마지막 화면을 남긴다"는 것뿐이다.
 ///
-/// 이어하기도 따로 모른다. 연출 기억을 되돌려 두면(PlaybackMemory.Restore) 단위가 열릴 때
-/// 재개 시크가 걸린다 — 이 호스트는 평소처럼 노드를 재생할 뿐이다.
-///
-/// 한 실행에 호스트는 하나다(PresentationRuntime.AttachHost).
+/// 한 실행에 호스트는 하나다.
 /// </summary>
 public sealed class NodePlaybackHost : IPlaybackHost
 {

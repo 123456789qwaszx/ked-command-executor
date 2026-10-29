@@ -66,7 +66,6 @@ public sealed partial class LinePlaybackDemo : MonoBehaviour
         _dispatcher = new DialogueAdvanceDispatcher();
 
         var episodeSkip = new EpisodeSkipController();
-        var runtimeStateProvider = new VNRuntimeStateProvider(_rollbackHistory);
         _probe = new LifecycleProbe(_stage, _trace, _audit, _rollbackHistory);
 
         // ── BootstrapPresentationSession ──
@@ -86,7 +85,7 @@ public sealed partial class LinePlaybackDemo : MonoBehaviour
 
         _ = new YarnCommandBridge(_runner, playbackDriver, new MiniStageCommandParser());
 
-        var lineBoundary = new VNYarnLineBoundary(_backlog, _rollbackHistory, runtimeStateProvider, _lineState);
+        var lineBoundary = new VNYarnLineBoundary(_backlog, _rollbackHistory, _lineState);
         var typewriter = new DemoTypewriter();
 
         _lineFlow = new VNLinePresentationFlow(
