@@ -1,0 +1,16 @@
+{
+    "name": "CommandLifecycle.Sample",
+    "rootNamespace": "",
+    "references": [
+        "Ked.CommandExecutor"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

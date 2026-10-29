@@ -29,6 +29,12 @@
 2. `INodeCommandFactory`로 스펙 → 커맨드를 잇고, `CompositeCommandFactory`로 묶어 `CommandExecutor.Initialize`에 준다.
 3. `PresentationScopeSession.Start()`로 `CommandRunScope`를 열고, `CommandExecutor.PlaySpecs(specs, scope)`로 돌린다. 줄 경계에서 `scope.CleanupStep`, 세션 끝에 `Session.End()`.
 
+## 샘플
+
+`Assets/Samples/CommandLifecycle/` — **Command Lifecycle Demo**. 사각형 두 개로 대기 · 병렬 · 스텝 수명 정리 · 압축 · 취소를 돌리고, 실행기 안쪽 상태(현재 커맨드 · 스텝 · 타임라인)를 옆에 그린다.
+`Scenes/CommandLifecycleDemo.unity`를 열고 Play. 실행기의 공개 API만 쓰며(어셈블리 `CommandLifecycle.Sample` → `Ked.CommandExecutor`), 자세한 것은 [샘플 README](Assets/Samples/CommandLifecycle/README.md).
+복사 반입 대상이 아니다 — 반입은 `Assets/Ked.CommandExecutor/`만 가져간다.
+
 ## 다른 저장소로 가져가기
 
 패키지가 아니다. **복사 반입**이다 — `Assets/Ked.CommandExecutor/`를 `.meta`까지 통째로 복사하고, 반입한 쪽의 `Documentation~/vendoring.md`에 원본 커밋을 적는다.
