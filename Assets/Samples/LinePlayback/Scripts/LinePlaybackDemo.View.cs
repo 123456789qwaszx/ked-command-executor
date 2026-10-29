@@ -1,7 +1,9 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 
-// 화면(IMGUI). 왼쪽은 결과(무대 · 대사창 · 버튼 · 이벤트), 오른쪽은 그 순간의 실행기 안쪽(줄 · 스코프 · 커맨드 · 감사).
-// 게임 화면 글자는 기본 폰트에서 깨지지 않도록 영어 · ASCII로만 쓴다.
+// 화면(IMGUI). 왼쪽은 결과(무대 · 대사창 · 버튼 · 이벤트), 오른쪽은 그 순간의 안쪽
+// (줄 단계 · 스코프 · 커맨드 · 감사 · 백로그). 화면의 틀 글자는 영어 · ASCII로 둔다 — 대사는 대본 그대로.
 public sealed partial class LinePlaybackDemo
 {
     private const float RefWidth = 1280f;
@@ -14,10 +16,28 @@ public sealed partial class LinePlaybackDemo
     private static readonly Color Bad = new(1f, 0.42f, 0.42f);
     private static readonly Color Info = new(0.36f, 0.80f, 0.92f);
 
-    private GUIStyle _title, _header, _text, _small, _wrap, _speaker, _bodyLabel;
+    // 한 줄 트랜잭션의 정상 경로 — 지금 단계를 이 줄 위에 칠한다.
+    private static readonly VNLinePresentationPhase[] PhasePath =
+    {
+        VNLinePresentationPhase.LineReceived,
+        VNLinePresentationPhase.LineEnteredCommitted,
+        VNLinePresentationPhase.LineRuntimeStateResolved,
+        VNLinePresentationPhase.VisualRunStarted,
+        VNLinePresentationPhase.DialogueSurfaceResolved,
+        VNLinePresentationPhase.TypewriterReady,
+        VNLinePresentationPhase.TypewriterCompleted,
+        VNLinePresentationPhase.DisplayCommitted,
+        VNLinePresentationPhase.WaitingForAdvance,
+        VNLinePresentationPhase.Completed,
+    };
+
+    private GUIStyle _title, _header, _text, _small, _smallWrap, _line, _speaker, _bodyLabel;
 
     private void OnGUI()
     {
+        if (_host == null)
+            return;
+
         EnsureStyles();
 
         float scale = Mathf.Min(Screen.width / RefWidth, Screen.height / RefHeight);
@@ -26,14 +46,16 @@ public sealed partial class LinePlaybackDemo
 
         GUI.Label(new Rect(20f, 8f, 1240f, 30f), "COMMAND EXECUTOR - LINE PLAYBACK DEMO", _title);
 
-        DrawStage(new Rect(20f, 44f, 780f, 290f));
-        DrawDialogueBox(new Rect(20f, 344f, 780f, 112f));
-        DrawControls(new Rect(20f, 466f, 780f, 60f));
-        DrawLog(new Rect(20f, 532f, 780f, 180f));
+        DrawStage(new Rect(20f, 44f, 780f, 250f));
+        DrawDialogueBox(new Rect(20f, 302f, 780f, 110f));
+        DrawControls(new Rect(20f, 420f, 780f, 56f));
+        DrawLog(new Rect(20f, 482f, 780f, 230f));
 
-        DrawLineAndScope(new Rect(820f, 44f, 440f, 130f));
-        DrawCommands(new Rect(820f, 184f, 440f, 170f));
-        DrawAudit(new Rect(820f, 364f, 440f, 348f));
+        DrawLine(new Rect(820f, 44f, 440f, 74f));
+        DrawScope(new Rect(820f, 122f, 440f, 52f));
+        DrawCommands(new Rect(820f, 180f, 440f, 140f));
+        DrawAudit(new Rect(820f, 326f, 440f, 200f));
+        DrawBacklog(new Rect(820f, 532f, 440f, 180f));
     }
 
     // ───────────────────────────── 왼쪽 ─────────────────────────────
@@ -44,77 +66,90 @@ public sealed partial class LinePlaybackDemo
         GUI.Label(new Rect(r.x + 10f, r.y + 6f, r.width - 20f, 18f), "STAGE  (plain state - the executor never sees it)", _header);
         GUI.Label(new Rect(r.x + 10f, r.y + 22f, r.width - 20f, 18f), _stage.Snapshot(), _small);
 
-        foreach (MiniStage.Character c in _stage.Characters)
+        foreach (MiniStage.Slot slot in _stage.Slots)
         {
-            float cx = r.center.x + c.X * r.width * 0.32f;
-            var body = new Rect(cx - 55f, r.yMax - 200f + c.Bob * 6f, 110f, 180f);
+            float cx = r.center.x + slot.X * r.width * 0.32f;
+            var body = new Rect(cx - 55f, r.yMax - 175f, 110f, 160f);
 
-            // 숨은 캐릭터는 자리만 옅게.
-            Outline(body, new Color(1f, 1f, 1f, 0.12f));
-            Fill(body, new Color(c.Color.r, c.Color.g, c.Color.b, c.Alpha));
+            // 숨은 슬롯은 자리만 옅게.
+            Outline(body, new Color(1f, 1f, 1f, 0.10f));
+            Fill(body, new Color(slot.Color.r, slot.Color.g, slot.Color.b, slot.Alpha));
 
             Color prev = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, Mathf.Max(0.25f, c.Alpha));
-            GUI.Label(new Rect(body.x, body.y - 22f, body.width, 20f), c.Ambient ? $"{c.Id}  ~ idle" : c.Id, _speaker);
-            GUI.Label(body, c.Face, _bodyLabel);
+            GUI.color = new Color(1f, 1f, 1f, Mathf.Max(0.25f, slot.Alpha));
+            GUI.Label(new Rect(body.x, body.y - 20f, body.width, 18f), $"{slot.Key} {slot.DisplayName}", _speaker);
+            GUI.Label(body, slot.Face, _bodyLabel);
             GUI.color = prev;
         }
+
+        // BGM — 런 수명 커맨드.
+        var bgm = new Rect(r.xMax - 230f, r.y + 6f, 220f, 16f);
+        GUI.Label(bgm, _stage.BgmKey != null ? $"BGM  {_stage.BgmKey}" : "BGM  -", _small);
+        var bar = new Rect(bgm.x + 130f, bgm.y + 4f, 90f, 8f);
+        Fill(bar, new Color(1f, 1f, 1f, 0.08f));
+        Fill(new Rect(bar.x, bar.y, bar.width * _stage.BgmVolume, bar.height), Info);
     }
 
     private void DrawDialogueBox(Rect r)
     {
-        Fill(r, new Color(0.08f, 0.09f, 0.11f));
-        Outline(r, new Color(1f, 1f, 1f, 0.15f));
+        Outline(r, new Color(1f, 1f, 1f, 0.08f));
 
-        string speaker = _typewriter.Speaker ?? "";
-        string body = _typewriter.VisibleText;
-
-        if (_presenter.Phase == MiniLinePhase.SeekPassThrough || _line.IsSeeking)
+        if (_boxView.Alpha > 0.001f)
         {
-            speaker = "";
-            body = $"(seeking to {_line.SeekTargetId} - lines pass through unseen, commands compressed)";
+            Fill(r, new Color(0.08f, 0.09f, 0.11f, _boxView.Alpha));
+
+            Color prev = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, _boxView.Alpha);
+            GUI.Label(new Rect(r.x + 14f, r.y + 8f, r.width - 28f, 22f), _boxView.CharacterName ?? "", _speaker);
+            GUI.Label(new Rect(r.x + 14f, r.y + 32f, r.width - 28f, r.height - 40f), _boxView.GetLineText().VisibleText, _line);
+            GUI.color = prev;
+
+            if (_lineFlow.CurrentPhase == VNLinePresentationPhase.WaitingForAdvance && Mathf.Repeat(Time.unscaledTime, 1f) < 0.6f)
+                GUI.Label(new Rect(r.xMax - 30f, r.yMax - 24f, 20f, 20f), "v", _speaker);
+        }
+        else
+        {
+            GUI.Label(new Rect(r.x + 14f, r.y + 8f, r.width - 28f, 20f), "(dialogue box hidden)", _small);
         }
 
-        GUI.Label(new Rect(r.x + 14f, r.y + 8f, r.width - 28f, 22f), speaker, _speaker);
-        GUI.Label(new Rect(r.x + 14f, r.y + 32f, r.width - 28f, r.height - 40f), body, _wrap);
-
-        if (_presenter.Phase == MiniLinePhase.WaitingForAdvance && Mathf.Repeat(Time.unscaledTime, 1f) < 0.6f)
-            GUI.Label(new Rect(r.xMax - 30f, r.yMax - 24f, 20f, 20f), "v", _speaker);
-
-        if (_status == RunStatus.Cancelled)
-            GUI.Label(new Rect(r.xMax - 300f, r.y + 8f, 286f, 20f), "<color=#ff6b6b>CANCELLED - left where it stopped</color>", _text);
-        else if (_status == RunStatus.NodeComplete)
-            GUI.Label(new Rect(r.xMax - 300f, r.y + 8f, 286f, 20f), "<color=#6bd68a>NODE COMPLETE</color>", _text);
+        if (_lineState.IsSeekingActive)
+            GUI.Label(new Rect(r.x + 14f, r.yMax - 22f, r.width - 28f, 18f), "<color=#5ccdeb>seeking - lines pass through unseen, their commands are compressed</color>", _small);
     }
 
     private void DrawControls(Rect r)
     {
-        const float w = 104f, h = 32f, gap = 8f;
+        const float w = 91f, h = 30f, gap = 7f;
         float x = r.x;
 
-        if (Button(new Rect(x, r.y, w, h), "Advance", false)) _controls.Advance();
+        if (Button(new Rect(x, r.y, w, h), "Advance", false)) _dispatcher.DispatchAdvance();
         x += w + gap;
 
-        if (Button(new Rect(x, r.y, w, h), "Fast-fwd", _modes.IsFastForward))
-            _modes.FastForwardToggled = !_modes.FastForwardToggled;
+        if (Button(new Rect(x, r.y, w, h), "Rapid skip", _playbackState.IsRapidSkipMode))
+        {
+            if (_playbackState.IsRapidSkipMode) _features.EndRapidSkip();
+            else _features.BeginRapidSkip();
+        }
         x += w + gap;
 
-        if (Button(new Rect(x, r.y, w, h), "Skip", _modes.SkipActive)) _controls.RequestSkip();
+        if (Button(new Rect(x, r.y, w, h), "Speed", _playbackState.IsSpeedUpMode)) _features.ToggleSpeedUpMode();
         x += w + gap;
 
-        if (Button(new Rect(x, r.y, w, h), "Rollback", false)) Rollback();
+        if (Button(new Rect(x, r.y, w, h), "Auto", _playbackState.IsAutoMode)) _features.ToggleAuto();
         x += w + gap;
 
-        if (Button(new Rect(x, r.y, w, h), "Cancel", false)) Cancel();
+        if (Button(new Rect(x, r.y, w, h), "Skip", false)) RequestSkip();
+        x += w + gap;
+
+        if (Button(new Rect(x, r.y, w, h), "Rollback", false)) RequestRollback();
+        x += w + gap;
+
+        if (Button(new Rect(x, r.y, w, h), "Exit", false)) Exit();
         x += w + gap;
 
         if (Button(new Rect(x, r.y, w, h), "Restart", false)) Restart();
-        x += w + gap;
 
-        if (Button(new Rect(x, r.y, w, h), "Speed x4", _modes.SpeedUp)) _modes.SpeedUp = !_modes.SpeedUp;
-
-        GUI.Label(new Rect(r.x, r.y + h + 6f, r.width, 18f),
-            "Space advance  |  hold Ctrl fast-forward  |  R rollback  -  refused requests show up in EVENTS", _small);
+        GUI.Label(new Rect(r.x, r.y + h + 4f, r.width, 18f),
+            "Space advance | hold Ctrl rapid skip | S speed | A auto | K skip | R rollback | Esc exit", _small);
     }
 
     private void DrawLog(Rect r)
@@ -131,59 +166,70 @@ public sealed partial class LinePlaybackDemo
 
     // ───────────────────────────── 오른쪽 ─────────────────────────────
 
-    private void DrawLineAndScope(Rect r)
+    private void DrawLine(Rect r)
     {
-        float y = r.y;
+        GUI.Label(new Rect(r.x, r.y, r.width, 18f), "LINE  (VNLinePresentationFlow)", _header);
 
-        GUI.Label(new Rect(r.x, y, r.width, 18f), "LINE", _header);
-        y += 18f;
-        GUI.Label(new Rect(r.x, y, r.width, 18f),
-            $"{_presenter.CurrentLineId}   phase <b>{_presenter.Phase}</b>   fully shown {YesNo(_line.IsLineFullyShown)}", _text);
-        y += 18f;
-        GUI.Label(new Rect(r.x, y, r.width, 18f),
-            _line.IsSeeking ? $"<color=#5ccdeb>seeking to {_line.SeekTargetId} (rollback)</color>" : "not seeking", _small);
-        y += 24f;
+        VNLinePresentationPhase phase = _lineFlow.CurrentPhase;
+        GUI.Label(new Rect(r.x, r.y + 18f, r.width, 18f),
+            $"<b>{phase}</b>   fully shown {YesNo(_lineState.IsLineFullyShown)}   #auto pending {YesNo(_lineState.IsLineAutoAdvancePending)}", _text);
 
-        GUI.Label(new Rect(r.x, y, r.width, 18f), "SCOPE", _header);
-        y += 18f;
-
-        if (!_session.IsRunning)
+        // 정상 경로 위의 위치. 경로 밖 단계(SeekPassThrough · Stale)는 따로 칠한다.
+        var sb = new System.Text.StringBuilder();
+        foreach (VNLinePresentationPhase step in PhasePath)
         {
-            GUI.Label(new Rect(r.x, y, r.width, 18f), "no CommandRunScope (session ended)", _text);
+            string name = Short(step);
+            sb.Append(step == phase ? Paint(name, Accent) : $"<color=#5b606b>{name}</color>").Append(' ');
+        }
+
+        if (phase == VNLinePresentationPhase.SeekPassThrough)
+            sb.Append(Paint("SeekPassThrough", Info));
+        else if (phase == VNLinePresentationPhase.Stale)
+            sb.Append(Paint("Stale", Bad));
+
+        GUI.Label(new Rect(r.x, r.y + 38f, r.width, 34f), sb.ToString(), _smallWrap);
+    }
+
+    private void DrawScope(Rect r)
+    {
+        GUI.Label(new Rect(r.x, r.y, r.width, 18f), "SCOPE  (PresentationScopeSession)", _header);
+
+        if (!_scopeSession.IsRunning)
+        {
+            GUI.Label(new Rect(r.x, r.y + 18f, r.width, 18f), $"no CommandRunScope   host {_status}", _text);
             return;
         }
 
-        CommandRunScope scope = _session.CurrentScope;
-        GUI.Label(new Rect(r.x, y, r.width, 18f),
-            $"session #{_sessionCount}   step {_trace.CurrentStep} [{_trace.CurrentStepLabel}]   status {_status}", _text);
-        y += 18f;
-        GUI.Label(new Rect(r.x, y, r.width, 18f),
+        CommandRunScope scope = _scopeSession.CurrentScope;
+        GUI.Label(new Rect(r.x, r.y + 18f, r.width, 18f),
+            $"session #{_probe.SessionCount}   step {_trace.CurrentStep} [{_trace.CurrentStepLabel}]   host {_status}", _text);
+        GUI.Label(new Rect(r.x, r.y + 35f, r.width, 18f),
             $"main routine {(scope.CommandIsPlaying ? "<color=#fbcc59>playing</color>" : "idle")}   " +
-            $"compress {OnOff(scope.ShouldCompressCommandExecution)}   x{scope.TimeScale:0}   " +
-            $"skip {OnOff(_modes.SkipActive)}", _text);
+            $"compress {OnOff(scope.ShouldCompressCommandExecution)}   x{scope.TimeScale:0.#}   " +
+            $"seek {OnOff(_lineState.IsSeekingActive)}", _text);
     }
 
     private void DrawCommands(Rect r)
     {
         GUI.Label(new Rect(r.x, r.y, r.width, 18f), "COMMANDS  (this step + anything still alive)", _header);
 
-        float y = r.y + 20f;
+        float y = r.y + 19f;
         int shown = 0;
 
         foreach (MiniTrace.Entry e in _trace.Entries)
         {
             bool relevant = e.Step == _trace.CurrentStep || e.IsRunning;
 
-            if (!relevant || shown >= 8)
+            if (!relevant || shown >= 7)
                 continue;
 
             string state = e.IsRunning ? $"Running {e.Progress * 100f:0}%" : e.State.ToString();
-            GUI.Label(new Rect(r.x, y, 70f, 18f), $"[{e.StepLabel}]", _small);
-            GUI.Label(new Rect(r.x + 44f, y, 190f, 18f), e.Label, _small);
-            GUI.Label(new Rect(r.x + 236f, y, 50f, 18f), $"<color=#8c93a3>{e.Lifetime}</color>", _small);
+            GUI.Label(new Rect(r.x, y, 44f, 18f), $"[{e.StepLabel}]", _small);
+            GUI.Label(new Rect(r.x + 44f, y, 196f, 18f), e.Label, _small);
+            GUI.Label(new Rect(r.x + 242f, y, 44f, 18f), $"<color=#8c93a3>{e.Lifetime}</color>", _small);
             GUI.Label(new Rect(r.x + 290f, y, 150f, 18f), Paint(state, StateColor(e.State)), _small);
 
-            y += 17f;
+            y += 16f;
             shown++;
         }
 
@@ -195,39 +241,70 @@ public sealed partial class LinePlaybackDemo
     {
         GUI.Label(new Rect(r.x, r.y, r.width, 18f), "AUDIT  (checked at every step boundary)", _header);
 
-        float y = r.y + 20f;
-        GUI.Label(new Rect(r.x, y, r.width, 18f), "<color=#8c93a3>line     settled == model     replay == first     settles</color>", _small);
-        y += 17f;
+        float y = r.y + 18f;
+        GUI.Label(new Rect(r.x, y, r.width, 18f), "<color=#8c93a3>line      settled == model      replay == first      settles</color>", _small);
+        y += 15f;
 
         foreach (MiniLifecycleAudit.LineResult result in _audit.Results)
         {
+            if (y > r.yMax - 52f)
+                break;
+
             GUI.Label(new Rect(r.x, y, 60f, 18f), result.Key, _small);
             GUI.Label(new Rect(r.x + 60f, y, 140f, 18f), Verdict(result.ModelOk), _small);
             GUI.Label(new Rect(r.x + 200f, y, 140f, 18f), Verdict(result.ReplayOk), _small);
             GUI.Label(new Rect(r.x + 340f, y, 60f, 18f), result.Settles.ToString(), _small);
-            y += 17f;
+            y += 14f;
         }
 
-        y = Mathf.Max(y + 8f, r.y + 200f);
-
-        Counter(ref y, r, "overlapping steps", _audit.Overlaps);
-        Counter(ref y, r, "late writes (old step, same session)", _stage.LateWrites);
-        Counter(ref y, r, "stale writes (ended session)", _stage.StaleWrites);
-        Counter(ref y, r, "model mismatches", _audit.ModelMismatches);
-        Counter(ref y, r, "replay mismatches", _audit.ReplayMismatches);
+        y = r.yMax - 50f;
+        GUI.Label(new Rect(r.x, y, r.width, 18f),
+            $"overlap {Count(_audit.Overlaps)}   late write {Count(_stage.LateWrites)}   stale write {Count(_stage.StaleWrites)}   " +
+            $"model {Count(_audit.ModelMismatches)}   replay {Count(_audit.ReplayMismatches)}", _small);
 
         if (_audit.LastMismatch != null)
-            GUI.Label(new Rect(r.x, y + 4f, r.width, 40f), _audit.LastMismatch, _small);
+            GUI.Label(new Rect(r.x, y + 16f, r.width, 34f), _audit.LastMismatch, _smallWrap);
     }
 
-    private void Counter(ref float y, Rect r, string label, int count)
+    private void DrawBacklog(Rect r)
     {
-        GUI.Label(new Rect(r.x, y, 260f, 18f), label, _small);
-        GUI.Label(new Rect(r.x + 260f, y, 80f, 18f), Paint(count.ToString(), count == 0 ? Good : Bad), _small);
-        y += 17f;
+        GUI.Label(new Rect(r.x, r.y, r.width, 18f), "BACKLOG  (jump = rollback to that line)", _header);
+
+        IReadOnlyList<DialogueLogEntry> entries = _features.Backlogs;
+        int first = Math.Max(0, entries.Count - 6);
+        float y = r.y + 20f;
+
+        for (int i = first; i < entries.Count; i++)
+        {
+            DialogueLogEntry entry = entries[i];
+            bool canJump = _host.IsRunning && _features.CanJumpTo(entry);
+
+            GUI.enabled = canJump;
+            if (GUI.Button(new Rect(r.x, y, 44f, 20f), "jump"))
+                RequestBacklogJump(entry);
+            GUI.enabled = true;
+
+            GUI.Label(new Rect(r.x + 50f, y + 1f, r.width - 50f, 18f), $"<color=#8c93a3>{entry.lineId}</color>  {entry.rawText}", _small);
+            y += 25f;
+        }
     }
 
     // ───────────────────────────── 도구 ─────────────────────────────
+
+    private static string Short(VNLinePresentationPhase phase) => phase switch
+    {
+        VNLinePresentationPhase.LineReceived => "Received",
+        VNLinePresentationPhase.LineEnteredCommitted => "Entered",
+        VNLinePresentationPhase.LineRuntimeStateResolved => "Resolved",
+        VNLinePresentationPhase.VisualRunStarted => "VisualRun",
+        VNLinePresentationPhase.DialogueSurfaceResolved => "Surface",
+        VNLinePresentationPhase.TypewriterReady => "TypeReady",
+        VNLinePresentationPhase.TypewriterCompleted => "Typed",
+        VNLinePresentationPhase.DisplayCommitted => "Displayed",
+        VNLinePresentationPhase.WaitingForAdvance => "Waiting",
+        VNLinePresentationPhase.Completed => "Completed",
+        _ => phase.ToString(),
+    };
 
     private static string Verdict(bool? ok) => ok switch
     {
@@ -236,21 +313,21 @@ public sealed partial class LinePlaybackDemo
         _ => "<color=#8c93a3>-</color>",
     };
 
+    private static string Count(int count) => Paint(count.ToString(), count == 0 ? Good : Bad);
     private static string YesNo(bool value) => value ? "yes" : "no";
     private static string OnOff(bool value) => value ? "<color=#fbcc59>ON</color>" : "off";
 
     private static string Paint(string text, Color color) => $"<color=#{ColorUtility.ToHtmlStringRGB(color)}>{text}</color>";
 
-    // 로그 줄의 위반 · 경계 낱말에 색을 입힌다.
     private static string Colorize(string line)
     {
         if (line.Contains("OVERLAP") || line.Contains("LATE WRITE") || line.Contains("STALE WRITE") || line.Contains("MISMATCH"))
             return Paint(line, Bad);
 
-        if (line.Contains("refused"))
+        if (line.Contains("refused") || line.Contains("discarded"))
             return Paint(line, Accent);
 
-        if (line.Contains("session") || line.Contains("seek"))
+        if (line.Contains("session") || line.Contains("rollback") || line.Contains("jump"))
             return Paint(line, Info);
 
         return line;
@@ -311,13 +388,23 @@ public sealed partial class LinePlaybackDemo
         _small = new GUIStyle(GUI.skin.label) { fontSize = 11, richText = true, clipping = TextClipping.Clip };
         _small.normal.textColor = new Color(0.85f, 0.87f, 0.9f);
 
-        _wrap = new GUIStyle(GUI.skin.label) { fontSize = 16, wordWrap = true };
-        _wrap.normal.textColor = Color.white;
+        _smallWrap = new GUIStyle(_small) { wordWrap = true };
+
+        _line = new GUIStyle(GUI.skin.label) { fontSize = 17, wordWrap = true };
+        _line.normal.textColor = Color.white;
 
         _speaker = new GUIStyle(GUI.skin.label) { fontSize = 15, fontStyle = FontStyle.Bold };
         _speaker.normal.textColor = Accent;
 
         _bodyLabel = new GUIStyle(GUI.skin.label) { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         _bodyLabel.normal.textColor = new Color(0.08f, 0.08f, 0.1f);
+
+        if (dialogueFont != null)
+        {
+            _line.font = dialogueFont;
+            _speaker.font = dialogueFont;
+            _small.font = dialogueFont;
+            _smallWrap.font = dialogueFont;
+        }
     }
 }

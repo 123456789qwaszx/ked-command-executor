@@ -1,190 +1,255 @@
+using MiniYarn;
 using UnityEngine;
 
-// Line Playback Demo의 호스트 — NodePlaybackHost + PlaybackUnit + ScenePresentation의 역할을 한 곳에 모았다.
+// Line Playback Demo의 조립 — ked-presentation-runtime의 PresentationAssembler + PresentationRuntime.AttachHost 자리.
+// 조립 순서와 연결은 원본을 그대로 따른다. 다른 것은 무대(MiniStage) · 대본(MiniYarn) · 화면(IMGUI)뿐이다.
 //
-// 조립(Awake):
-//   대본 ─ MiniDialogueRunner ─ MiniCommandBridge ─ MiniPlaybackDriver ─ CommandExecutor.PlaySpecs
-//                         └──── MiniLinePresenter(줄 진입 = 스텝 경계 · 시크 · 타자기)
-//   PresentationScopeSession(executor, MiniPacePolicy)  ← 빨리 감기 · 시크 = 압축, 속도 모드 = 시간 배율
-//
-// 세션 하나 = 런 하나. 런의 수명은 여기서만 열고 닫는다:
-//   다시 시작  정지 → 무대 비우기 → 새 세션 → 노드를 루트부터
-//   롤백      표적(앞 줄)을 정하고 시크를 건다 → 정지 → 새 세션 → 루트부터, 표적까지 압축으로 지나간다
-//   취소      정지만 한다. 무대는 멈춘 자리에 남는다
-//   노드 끝   마지막 줄도 스텝 경계를 맞는다. 세션은 열어 둔다(런 수명 명령이 계속 돈다)
+//   대본 ─ DialogueRunner(MiniYarn) ─┬─ YarnCommandBridge ─ YarnPlaybackDriver(쌓기)
+//                                    └─ CustomLinePresenter ─ VNLinePresentationFlow ─ PlayCollected → CommandExecutor.PlaySpecs
+//   PresentationScopeSession(executor, PresentationSessionContext)   ← 빨리 넘기기 · 시크 = 압축, 속도 모드 = 시간 배율
+//   NodePlaybackHost ─ PlaybackUnit ─ ScenePresentation             ← 런 수명(열기 · 정지 · 루트부터 다시)
+//   VNAdvanceInputPoller ─ DialogueAdvanceDispatcher(AdvanceGate) · VNFeatureController(롤백 · 스킵 · 오토 · 속도)
 [DisallowMultipleComponent]
 public sealed partial class LinePlaybackDemo : MonoBehaviour
 {
-    private enum RunStatus { Idle, Running, NodeComplete, Cancelled }
+    [Header("Script")]
+    [SerializeField] private TextAsset script;
+    [SerializeField] private string startNode = "LinePlayback_Demo";
+
+    [Header("Playback")]
+    [SerializeField] private VNPlaybackSettings playbackSettings = new();
+
+    [Header("View")]
+    [Tooltip("대사 글꼴. 비우면 IMGUI 기본 글꼴(OS 글꼴로 대체)을 쓴다. 한글이 네모로 보이면 한글 글꼴을 넣는다.")]
+    [SerializeField] private Font dialogueFont;
 
     private CommandExecutor _executor;
-    private PresentationScopeSession _session;
+    private PresentationScopeSession _scopeSession;
 
     private MiniTrace _trace;
     private MiniStage _stage;
     private MiniLifecycleAudit _audit;
-    private MiniLineState _line;
-    private MiniRollbackHistory _history;
-    private MiniPlaybackModes _modes;
-    private MiniTypewriter _typewriter;
+    private LifecycleProbe _probe;
 
-    private MiniDialogueRunner _runner;
-    private MiniLinePresenter _presenter;
-    private MiniPlaybackDriver _driver;
-    private MiniPlaybackControls _controls;
+    private VNPlaybackRuntimeState _playbackState;
+    private VNLinePresentationState _lineState;
+    private RollbackHistory _rollbackHistory;
+    private BacklogRecorder _backlog;
 
-    private int _sessionCount;
-    private RunStatus _status = RunStatus.Idle;
+    private DialogueRunner _runner;
+    private ImguiDialogueBoxView _boxView;
+    private VNLinePresentationFlow _lineFlow;
+
+    private DialogueAdvanceDispatcher _dispatcher;
+    private AdvanceGate _gate;
+    private VNFeatureController _features;
+    private NodePlaybackHost _host;
+
+    private int _playRequest;
+    private string _status = "idle";
 
     private void Awake()
     {
+        PresentationClock.UnscaledTimeScale = 1f;
+
         if (!TryGetComponent(out _executor))
             _executor = gameObject.AddComponent<CommandExecutor>();
 
+        // 샘플 무대 · 장부 · 감사
         _trace = new MiniTrace();
         _stage = new MiniStage(_trace);
         _audit = new MiniLifecycleAudit(new MiniStageModel(_stage), _trace);
-        _line = new MiniLineState();
-        _history = new MiniRollbackHistory();
-        _modes = new MiniPlaybackModes();
-        _typewriter = new MiniTypewriter();
 
+        _playbackState = new VNPlaybackRuntimeState { PlaybackSettings = playbackSettings };
+        _lineState = new VNLinePresentationState();
+        _rollbackHistory = new RollbackHistory();
+        _backlog = new BacklogRecorder();
+        _dispatcher = new DialogueAdvanceDispatcher();
+
+        var episodeSkip = new EpisodeSkipController();
+        var runtimeStateProvider = new VNRuntimeStateProvider(_rollbackHistory);
+        _probe = new LifecycleProbe(_stage, _trace, _audit, _rollbackHistory);
+
+        // ── BootstrapPresentationSession ──
         _executor.Initialize(new CompositeCommandFactory(new MiniCommandFactory(_stage, _trace)));
-        _session = new PresentationScopeSession(_executor, new MiniPacePolicy(_modes, _line));
+        _scopeSession = new PresentationScopeSession(
+            _executor,
+            new PresentationSessionContext(_playbackState, _lineState));
 
-        _driver = new MiniPlaybackDriver(_executor, _session, _stage, _trace, _audit);
-        _presenter = new MiniLinePresenter(_line, _history, _driver, _typewriter, _modes, _trace);
-        _runner = new MiniDialogueRunner(this, MiniScriptParser.Parse(DemoScript.Source), _presenter);
-        _ = new MiniCommandBridge(_runner, _driver);
-        _controls = new MiniPlaybackControls(_modes, _line, _runner, _session, _trace);
+        // ── BootstrapYarn ──
+        _runner = gameObject.AddComponent<DialogueRunner>();
+        _runner.SetProgram(YarnProgram.Parse(script != null ? script.text : string.Empty, script != null ? script.name : "(no script)"));
 
-        _runner.NodeCompleted += OnNodeCompleted;
+        if (script == null)
+            Debug.LogError("[LinePlaybackDemo] No script TextAsset is assigned.", this);
+
+        var playbackDriver = new YarnPlaybackDriver(_executor, _scopeSession, _probe);
+
+        _boxView = new ImguiDialogueBoxView();
+        var boxPresentation = new DialogueBoxPresentationController(new DialogueBoxCurrentState(), _boxView);
+
+        _ = new YarnCommandBridge(_runner, playbackDriver, new MiniStageCommandParser(), boxPresentation);
+
+        var lineBoundary = new VNYarnLineBoundary(_backlog, _rollbackHistory, runtimeStateProvider, _lineState);
+        var typewriter = new DemoTypewriter();
+
+        _lineFlow = new VNLinePresentationFlow(
+            lineBoundary,
+            _lineState,
+            boxPresentation,
+            typewriter,
+            playbackDriver,
+            new LineHurrySpeedController(typewriter));
+
+        var linePresenter = gameObject.AddComponent<CustomLinePresenter>();
+        linePresenter.Initialize(_runner, _lineFlow, typewriter, _playbackState);
+
+        // ── CreateScenePresentation ──
+        var scenePresentation = new ScenePresentation(
+            new YarnEpisodeNodeRunner(_runner),
+            _rollbackHistory,
+            linePresenter,
+            _stage,
+            _scopeSession,
+            episodeSkip,
+            _lineState,
+            playbackDriver,
+            _probe);
+
+        // ── BootstrapPlaybackControls ──
+        var autoAdvance = new AutoAdvanceScheduler();
+        autoAdvance.Initialize(_playbackState, _dispatcher, () => Time.unscaledTimeAsDouble);
+        typewriter.Handlers.Add(autoAdvance);
+
+        var rapidSkip = new RapidSkipController(_dispatcher);
+        episodeSkip.Initialize(_dispatcher);
+
+        _features = new VNFeatureController(
+            _playbackState,
+            _lineState,
+            typewriter,
+            _backlog,
+            autoAdvance,
+            rapidSkip,
+            episodeSkip,
+            _rollbackHistory);
+
+        _gate = new AdvanceGate(_playbackState, _lineState, _scopeSession);
+        _gate.Rejected += OnAdvanceRejected;
+        _dispatcher.Initialize(_gate, _runner, _lineState);
+
+        // ── PresentationRuntime.AttachHost ──
+        _host = new NodePlaybackHost(new PlaybackUnit(scenePresentation, _backlog, _rollbackHistory));
+
+        var inputPoller = gameObject.AddComponent<VNAdvanceInputPoller>();
+        inputPoller.Initialize(_dispatcher, _features, _host);
     }
 
-    private void Start() => Restart();
+    private void Start() => PlayNode();
 
     private void Update()
     {
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return))
-            _controls.Advance();
+        // VNAdvanceInputPoller가 Space · Ctrl · S · A · R을 읽는다. 원본에서 메뉴가 하는 둘만 여기서.
+        if (Input.GetKeyDown(KeyCode.K))
+            RequestSkip();
 
-        // 누르는 동안만. 롤백이 내린 뒤에는 다시 눌러야 켜진다.
-        if (Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.RightControl))
-            _modes.FastForwardHeld = true;
+        if (Input.GetKeyDown(KeyCode.Escape))
+            Exit();
 
-        if (Input.GetKeyUp(KeyCode.LeftControl) || Input.GetKeyUp(KeyCode.RightControl))
-            _modes.FastForwardHeld = false;
-
-        if (Input.GetKeyDown(KeyCode.R))
-            Rollback();
-
-        _controls.Tick();
+        _probe.Tick();
     }
 
     private void OnDestroy()
     {
-        if (_runner != null)
-            _runner.NodeCompleted -= OnNodeCompleted;
-
-        // 실행기가 먼저 파괴됐으면 그쪽 코루틴도 이미 없다.
-        if (_executor != null && _session != null && _session.IsRunning)
-            _session.End();
+        if (_gate != null)
+            _gate.Rejected -= OnAdvanceRejected;
     }
 
-    // ───────────────────────────── 런 수명 ─────────────────────────────
+    // ───────────────────────────── 재생 호스트 ─────────────────────────────
 
-    private void Restart()
+    private async void PlayNode()
     {
-        StopRun("restart");
+        int request = ++_playRequest;
+        _status = "playing";
 
-        _line.ClearSeek();
-        _modes.DisableAll();
-        _audit.ResetAll();
-        _stage.ResetCounters();
+        bool completed = await _host.PlayAsync(startNode);
 
-        OpenRun("from the root");
+        if (request == _playRequest)
+            _status = completed ? "node complete" : "exited";
     }
 
-    // 한 걸음 되감기 — 루트부터 다시 달려 앞 줄까지 시크한다(무대를 되돌리는 것이 아니라 다시 만든다).
-    private void Rollback()
+    // 원본 VNAdvanceInputPoller.PollFeatureToggles의 롤백과 같은 순서 — 표적을 정한 뒤 호스트가 루트부터 다시 돈다.
+    private async void RequestRollback()
     {
-        if (!_session.IsRunning || _line.IsSeeking)
+        if (!_host.IsRunning)
+            return;
+
+        if (!_features.RequestRollbackOneStep())
         {
-            _trace.Write("rollback refused - " + (_line.IsSeeking ? "seek active" : "no session"));
+            _trace.Write("rollback refused - no earlier line, or a seek is already running");
             return;
         }
 
-        if (!_history.TryGetOneStepBack(out MiniLineKey target))
+        _trace.Write("rollback - target picked, replaying from the root");
+        await _host.RequestReplayAsync();
+    }
+
+    private async void RequestBacklogJump(DialogueLogEntry entry)
+    {
+        if (!_host.IsRunning || !_features.RequestBacklogJump(entry))
+            return;
+
+        _trace.Write($"backlog jump - replaying from the root to {entry.lineId}");
+        await _host.RequestReplayAsync();
+    }
+
+    private void RequestSkip()
+    {
+        _trace.Write(_features.RequestSkipCurrentEpisode()
+            ? "episode skip - advancing every line until the node ends (step boundaries, no compression)"
+            : "episode skip refused - seek active or node not running");
+    }
+
+    private async void Exit()
+    {
+        if (!_host.IsRunning)
+            return;
+
+        _trace.Write("exit - NodePlaybackHost.ExitAsync");
+        await _host.ExitAsync();
+    }
+
+    private bool _restarting;
+
+    private async void Restart()
+    {
+        if (_restarting)
+            return;
+
+        _restarting = true;
+
+        try
         {
-            _trace.Write("rollback refused - nothing before this line");
-            return;
+            if (_host.IsRunning)
+                await _host.ExitAsync();
+
+            while (_host.IsRunning)
+                await YarnTask.Yield();
+
+            _audit.ResetAll();
+            _stage.ResetCounters();
+            PlayNode();
         }
-
-        _line.BeginRollbackSeek(target);
-        _modes.DisableAll();
-
-        StopRun($"rollback to {target.Id}");
-        OpenRun($"replay, seek to {target.Id}");
+        finally
+        {
+            _restarting = false;
+        }
     }
 
-    private void Cancel()
+    private void OnAdvanceRejected(AdvanceRequestKind kind, string reason)
     {
-        if (!_session.IsRunning)
-            return;
-
-        StopRun("cancel");
-
-        _line.ClearSeek();
-        _modes.DisableAll();
-        _status = RunStatus.Cancelled;
-    }
-
-    private void OpenRun(string reason)
-    {
-        _stage.Clear();
-        _history.Clear();
-        _typewriter.Clear();
-
-        _session.Start();
-        _sessionCount++;
-
-        _stage.ActiveScope = _session.CurrentScope;
-        _stage.CurrentStep = 0;
-        _trace.BeginRun(_sessionCount, reason);
-        _audit.BeginRun();
-
-        _status = RunStatus.Running;
-        _runner.StartNode();
-    }
-
-    // ScenePresentation.StopAsync와 같은 순서 — Yarn 정지 → 쌓인 명령 버리기 → 줄 무효화 → 세션 끝(Stop(Cancel)).
-    private void StopRun(string reason)
-    {
-        if (!_session.IsRunning)
-            return;
-
-        _runner.Stop();
-
-        if (_driver.TryDiscardPending(out int count, out string summary))
-            _trace.Write($"discarded {count} collected command(s) that never got a line: {summary}");
-
-        _presenter.AbortCurrentLine();
-        _session.End();
-        _trace.CancelUnfinished(reason);
-
-        // 이 뒤로 이전 스코프로 들어오는 쓰기는 전부 stale write다.
-        _stage.ActiveScope = null;
-    }
-
-    private void OnNodeCompleted()
-    {
-        _driver.SettleFinal();
-
-        if (_driver.TryDiscardPending(out int count, out string summary))
-            _trace.Write($"node ended - {count} command(s) after the last line were discarded, never run: {summary}");
-
-        _modes.SkipActive = false;
-        _status = RunStatus.NodeComplete;
-        _trace.Write("node complete - session stays open, run-scoped commands keep running");
+        // 사람의 요청만 적는다(자동 · 빨리 넘기기는 매 프레임 두드린다).
+        if (kind == AdvanceRequestKind.User && (reason == "cps_node_busy" || reason == "seek_active"))
+            _trace.Write($"advance refused - {reason}");
     }
 }

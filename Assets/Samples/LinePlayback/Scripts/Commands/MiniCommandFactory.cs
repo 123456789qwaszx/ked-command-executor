@@ -19,29 +19,22 @@ public sealed class MiniCommandFactory : INodeCommandFactory
 
         switch (spec)
         {
-            case MiniShowSpec show:
-                if (!TryTarget(show.target, out MiniStage.Character shown) || !TrySlot(show.slot, out float showX))
+            case MiniPlaceSpec place:
+                if (!TrySlot(place.slot, out MiniStage.Slot placed) || !TryPosition(place.position, out float x))
                     return false;
 
-                command = new MiniShowCommand(_stage, shown, showX, show, Register(show));
+                command = new MiniPlaceCommand(_stage, placed, x, place, Register(place));
                 return true;
 
-            case MiniHideSpec hide:
-                if (!TryTarget(hide.target, out MiniStage.Character hidden))
+            case MiniFadeSpec fade:
+                if (!TrySlot(fade.slot, out MiniStage.Slot faded))
                     return false;
 
-                command = new MiniHideCommand(_stage, hidden, hide, Register(hide));
-                return true;
-
-            case MiniMoveSpec move:
-                if (!TryTarget(move.target, out MiniStage.Character moved) || !TrySlot(move.slot, out float moveX))
-                    return false;
-
-                command = new MiniMoveCommand(_stage, moved, moveX, move, Register(move));
+                command = new MiniFadeCommand(_stage, faded, fade, Register(fade));
                 return true;
 
             case MiniFaceSpec face:
-                if (!TryTarget(face.target, out MiniStage.Character faced))
+                if (!TrySlot(face.slot, out MiniStage.Slot faced))
                     return false;
 
                 command = new MiniFaceCommand(_stage, faced, face, Register(face));
@@ -51,11 +44,12 @@ public sealed class MiniCommandFactory : INodeCommandFactory
                 command = new MiniPauseCommand(_stage, pause, _trace.Register(pause.ToString(), MiniTrace.Lifetime.Wait));
                 return true;
 
-            case MiniAmbientSpec ambient:
-                if (!TryTarget(ambient.target, out MiniStage.Character idler))
-                    return false;
+            case MiniBgmSpec bgm:
+                command = new MiniBgmCommand(_stage, bgm, _trace.Register(bgm.ToString(), MiniTrace.Lifetime.Run));
+                return true;
 
-                command = new MiniAmbientCommand(_stage, idler, _trace.Register(ambient.ToString(), MiniTrace.Lifetime.Run));
+            case MiniStopBgmSpec stopBgm:
+                command = new MiniStopBgmCommand(_stage, stopBgm, Register(stopBgm));
                 return true;
 
             default:
@@ -66,21 +60,21 @@ public sealed class MiniCommandFactory : INodeCommandFactory
     private MiniTrace.Entry Register(CommandSpecBase spec)
         => _trace.Register(spec.ToString(), spec.wait ? MiniTrace.Lifetime.Wait : MiniTrace.Lifetime.Step);
 
-    private bool TryTarget(string id, out MiniStage.Character character)
+    private bool TrySlot(string key, out MiniStage.Slot slot)
     {
-        if (_stage.TryGet(id, out character))
+        if (_stage.TryGet(key, out slot))
             return true;
 
-        Debug.LogWarning($"[MiniCommandFactory] Unknown target '{id}'.");
+        Debug.LogWarning($"[MiniCommandFactory] Unknown slot '{key}'.");
         return false;
     }
 
-    private static bool TrySlot(string slot, out float x)
+    private static bool TryPosition(string position, out float x)
     {
-        if (MiniStage.TryGetSlotX(slot, out x))
+        if (MiniStage.TryGetPositionX(position, out x))
             return true;
 
-        Debug.LogWarning($"[MiniCommandFactory] Unknown slot '{slot}' (left | center | right).");
+        Debug.LogWarning($"[MiniCommandFactory] Unknown position '{position}'.");
         return false;
     }
 }

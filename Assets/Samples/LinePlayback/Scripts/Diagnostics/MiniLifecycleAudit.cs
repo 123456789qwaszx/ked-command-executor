@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-// 생명주기 감사. 스텝 경계마다 "앞 줄이 제대로 끝났나"를 판정한다(MiniPlaybackDriver가 부른다).
+// 생명주기 감사. 스텝 경계마다 "앞 줄이 제대로 끝났나"를 판정한다(YarnPlaybackDriver → LifecycleProbe가 부른다).
 //
 //   model   정리된 무대 == 순수 모델(MiniStageModel)? — 어떤 길로 왔든(보통 · 서두르기 · Finish · 압축 · 시크) 같아야 한다.
 //   replay  같은 줄을 다시 지났을 때(롤백 시크 · 다시 시작) 정리된 무대 == 처음 그 줄에서 본 무대?
@@ -75,12 +75,12 @@ public sealed class MiniLifecycleAudit
         _trace.Write($"OVERLAP - leaving [{_pendingKey}] while its main routine still holds {what}");
     }
 
-    public void BeginStep(MiniLineKey line, IReadOnlyList<CommandSpecBase> specs)
+    public void BeginStep(string lineKey, IReadOnlyList<CommandSpecBase> specs)
     {
         for (int i = 0; i < specs.Count; i++)
             _model.Apply(specs[i]);
 
-        _pendingKey = line.Id;
+        _pendingKey = lineKey;
 
         if (!_byKey.ContainsKey(_pendingKey))
         {

@@ -36,7 +36,7 @@
 | 샘플 | 씬 | 보여 주는 것 |
 |---|---|---|
 | [Command Lifecycle Demo](Assets/Samples/CommandLifecycle/README.md) | `Assets/Samples/CommandLifecycle/Scenes/CommandLifecycleDemo.unity` | 실행기 하나의 동작을 떼어서 — 대기 · 병렬 · 스텝 수명 정리 · 압축 · 취소 |
-| [Line Playback Demo](Assets/Samples/LinePlayback/README.md) | `Assets/Samples/LinePlayback/Scenes/LinePlaybackDemo.unity` | Yarn을 흉내 낸 대사 재생 계층 위에서 롤백 · 빨리 감기 · 스킵 · 취소가 겹칠 때. 스텝 경계마다 무대를 순수 모델과 맞춰 보고, 겹친 스텝 · 늦은 쓰기 · 끝난 세션의 쓰기를 센다 |
+| [Line Playback Demo](Assets/Samples/LinePlayback/README.md) | `Assets/Samples/LinePlayback/Scenes/LinePlaybackDemo.unity` | `ked-presentation-runtime`의 재생 계층(`CustomLinePresenter` · `VNLinePresentationFlow` · `YarnPlaybackDriver` · `YarnCommandBridge` · 재생 제어 · 호스트)을 구조 그대로 옮겨, Yarn 흉내(`MiniYarn`) 위에서 돌린다. 명령은 쌓였다가 다음 줄에서 한 스텝으로 재생되고, 롤백 · 빨리 넘기기 · 스킵 · 종료 속에서 스텝 경계마다 무대를 순수 모델과 맞춰 본다 |
 
 ## 다른 저장소로 가져가기
 

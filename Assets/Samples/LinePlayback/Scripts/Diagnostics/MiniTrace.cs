@@ -41,12 +41,12 @@ public sealed class MiniTrace
         public float Progress =>
             !IsRunning ? 1f :
             PlannedDuration <= 0f ? 0f :
-            Mathf.Clamp01((Time.time - StartTime) / PlannedDuration);
+            Mathf.Clamp01((Time.unscaledTime - StartTime) / PlannedDuration);
 
         public void Enter(float scaledDuration)
         {
             State = CommandState.Running;
-            StartTime = Time.time;
+            StartTime = Time.unscaledTime;
             PlannedDuration = scaledDuration;
         }
 
@@ -83,7 +83,7 @@ public sealed class MiniTrace
 
     private readonly List<Entry> _entries = new();
     private readonly List<string> _log = new();
-    private readonly float _origin = Time.time;
+    private readonly float _origin = Time.unscaledTime;
 
     public IReadOnlyList<Entry> Entries => _entries;
     public IReadOnlyList<string> Log => _log;
@@ -154,9 +154,21 @@ public sealed class MiniTrace
         return false;
     }
 
+    // 스텝 수명 · 대기 명령 중에 아직 도는 것이 있나(노드 끝의 마지막 정산을 언제 할지).
+    public bool HasStepWorkRunning()
+    {
+        foreach (Entry entry in _entries)
+        {
+            if (entry.Lifetime != Lifetime.Run && (entry.IsRunning || entry.State == CommandState.Pending))
+                return true;
+        }
+
+        return false;
+    }
+
     public void Write(string message)
     {
-        _log.Add($"{Time.time - _origin,6:0.00}  {message}");
+        _log.Add($"{Time.unscaledTime - _origin,6:0.00}  {message}");
 
         if (_log.Count > MaxLogLines)
             _log.RemoveAt(0);

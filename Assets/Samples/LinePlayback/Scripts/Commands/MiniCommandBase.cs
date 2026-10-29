@@ -8,6 +8,7 @@ using UnityEngine;
 //   OnStepLifetimeFinished — 배경으로 돌다가 스텝 경계 CleanupStep(Finish)를 만났다. 남은 길을 건너뛰고 Commit.
 //
 // 어느 문으로 들어오든 같은 Commit에 닿는다 — 그래서 감사(MiniStageModel)가 길과 상관없이 같은 답을 기대할 수 있다.
+// 시간은 PresentationClock으로 흐른다 — 줄을 서두르면(LineHurrySpeedController) 돌던 커맨드도 함께 빨라진다.
 //
 // Cancel에는 문이 없다. 실행기는 루틴을 멈출 뿐이라 무대는 멈춘 자리에 남는다.
 // 루프는 매 프레임 scope.IsCancelled와 자기 상태를 직접 본다 — StopCoroutine이 중첩된 본문까지 멈추는지에 기대지 않는다.
@@ -45,7 +46,7 @@ public abstract class MiniCommandBase : CommandBase
         Trace.Enter(duration);
         Begin();
 
-        for (float elapsed = 0f; elapsed < duration; elapsed += Time.deltaTime)
+        for (float elapsed = 0f; elapsed < duration; elapsed += PresentationClock.DeltaTime)
         {
             if (!_running || scope.IsCancelled)
                 yield break;

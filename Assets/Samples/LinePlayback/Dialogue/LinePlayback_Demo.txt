@@ -1,0 +1,60 @@
+// 줄 단위 재생 데모 — Yarn 문법의 작은 부분집합(MiniYarn이 읽는다).
+//
+// 명령은 그 자리에서 실행되지 않는다. YarnCommandBridge가 스펙으로 바꿔 YarnPlaybackDriver에 쌓고,
+// 다음 대사 줄에 들어갈 때 VNLinePresentationFlow가 PlayCollected로 한 스텝에 재생한다.
+// 그래서 줄 하나 = 스텝 하나이고, 앞 줄의 배경 명령은 다음 줄에 들어가는 순간 CleanupStep(Finish)로 정리된다.
+//
+// 줄마다 생명주기 상황 하나:
+//   l01  줄 앞머리 명령 + 대기(24fr) — 끝날 때까지 Space(넘기기)는 거절된다(AdvanceGate: cps_node_busy)
+//   l02  3초짜리 배경 이동 — 다 가기 전에 넘기면 다음 줄의 스텝 경계가 Finish로 끝낸다
+//   l03  BGM(런 수명)은 줄을 넘어 흐른다 · 표정은 즉시 · 등장은 배경
+//   l04  기다리는 이동(wait) — 여기서 R: 루트부터 다시 달려 l03까지 압축 시크
+//   l05  box_hide — 쌓이지 않고 그 자리에서 실행되는 명령(Yarn이 끝날 때까지 기다린다)
+//   l06  긴 pause 뒤에 명령이 하나 더 — 글자가 다 나온 뒤 pause가 끝나기 전에 Ctrl/Skip을 누르면
+//        다음 줄이 앞 줄의 메인 루틴보다 먼저 시작된다(감사가 겹침 · 늦은 쓰기를 잡는다)
+//   l07  감사 결과 보기
+//   l08  #boxhide #auto — 대사창 없이 퇴장 연출, 끝나면 입력 없이 노드가 끝난다
+//   끝   마지막 줄 뒤의 명령은 다음 줄이 없어 실행되지 않고 버려진다(경고)
+
+title: LinePlayback_Demo
+---
+<<bgm town_theme 2s>>
+<<place_left s1 bust 0fr>>
+<<fade_in s1 18fr>>
+<<24fr>>
+하린: 명령 넷이 이 줄에 들어오는 순간 한 스텝으로 재생됐어. 마지막 24fr이 끝날 때까지는 넘길 수 없어. #line:l01
+
+<<place_center s1 bust 72fr>>
+하린: 이제 3초 동안 가운데로 걸어가. 다 가기 전에 넘기면, 다음 줄의 스텝 경계가 Finish로 끝내. #line:l02
+
+<<place_right s2 bust 0fr>>
+<<fade_in s2 14fr>>
+<<face s1 smile>>
+시구레: 표정은 즉시, 등장은 배경으로. BGM은 런 수명이라 줄이 넘어가도 계속 흘러요. #line:l03
+
+<<place_left s1 bust 36fr wait>>
+하린: 이 이동은 기다리는 명령이야. 여기서 R을 누르면 루트부터 다시 달려 앞 줄로 돌아가. #line:l04
+
+<<box_hide>>
+<<fade_out s2 14fr>>
+<<face s1 serious>>
+하린: 방금 대사창이 잠깐 사라졌지? box_hide는 쌓이지 않고 그 자리에서 실행되는 명령이야. #line:l05
+
+<<fade_in s3 14fr>>
+<<place_center s3 bust 0fr>>
+<<pause 3>>
+<<face s3 surprised>>
+카스미: 글자가 다 나온 뒤, 3초 pause가 끝나기 전에 Ctrl이나 Skip을 눌러 봐. #line:l06
+
+<<face s3 smile>>
+카스미: AUDIT을 봐. 앞 줄의 pause가 끝나기 전에 이 줄이 시작돼서, 겹침과 늦은 쓰기가 잡혔을 거야. #line:l07
+
+<<fade_out s1 12fr>>
+<<fade_out s3 12fr>>
+<<stop_bgm 2s>>
+<<24fr>>
+캐릭터 퇴장 #boxhide #auto #line:l08
+
+// 마지막 줄 뒤의 명령 — 다음 줄이 없어 실행되지 않고 버려진다.
+<<face s1 neutral>>
+===
