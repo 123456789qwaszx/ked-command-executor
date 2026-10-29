@@ -31,9 +31,12 @@
 
 ## 샘플
 
-`Assets/Samples/CommandLifecycle/` — **Command Lifecycle Demo**. 사각형 두 개로 대기 · 병렬 · 스텝 수명 정리 · 압축 · 취소를 돌리고, 실행기 안쪽 상태(현재 커맨드 · 스텝 · 타임라인)를 옆에 그린다.
-`Scenes/CommandLifecycleDemo.unity`를 열고 Play. 실행기의 공개 API만 쓰며(어셈블리 `CommandLifecycle.Sample` → `Ked.CommandExecutor`), 자세한 것은 [샘플 README](Assets/Samples/CommandLifecycle/README.md).
-복사 반입 대상이 아니다 — 반입은 `Assets/Ked.CommandExecutor/`만 가져간다.
+둘 다 실행기의 공개 API만 쓰고(각 샘플 어셈블리 → `Ked.CommandExecutor`), 복사 반입 대상이 아니다 — 반입은 `Assets/Ked.CommandExecutor/`만 가져간다.
+
+| 샘플 | 씬 | 보여 주는 것 |
+|---|---|---|
+| [Command Lifecycle Demo](Assets/Samples/CommandLifecycle/README.md) | `Assets/Samples/CommandLifecycle/Scenes/CommandLifecycleDemo.unity` | 실행기 하나의 동작을 떼어서 — 대기 · 병렬 · 스텝 수명 정리 · 압축 · 취소 |
+| [Line Playback Demo](Assets/Samples/LinePlayback/README.md) | `Assets/Samples/LinePlayback/Scenes/LinePlaybackDemo.unity` | Yarn을 흉내 낸 대사 재생 계층 위에서 롤백 · 빨리 감기 · 스킵 · 취소가 겹칠 때. 스텝 경계마다 무대를 순수 모델과 맞춰 보고, 겹친 스텝 · 늦은 쓰기 · 끝난 세션의 쓰기를 센다 |
 
 ## 다른 저장소로 가져가기
 

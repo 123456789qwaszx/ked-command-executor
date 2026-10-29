@@ -8,6 +8,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Samples/CommandLifecycle/Scenes/CommandLifecycleDemo.unity
     guid: 82ae6c68684544749db2f25a2e896314
+  - enabled: 1
+    path: Assets/Samples/LinePlayback/Scenes/LinePlaybackDemo.unity
+    guid: 762492c6bfd341879d6cd35e97deec39
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0
