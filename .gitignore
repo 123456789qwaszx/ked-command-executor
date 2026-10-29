@@ -109,3 +109,7 @@ EquivalenceReports/
 !tests/ProgressionCore/ProgressionCore.csproj
 tests/**/bin/
 tests/**/obj/
+
+# JetBrains Rider
+.idea/
+*.sln.iml
